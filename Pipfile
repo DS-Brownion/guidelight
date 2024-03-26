@@ -9,6 +9,7 @@ torch = "*"
 sqlalchemy = "*"
 kaggle = "*"
 yfinance = "*"
+scipy = "*"
 
 [dev-packages]
 
