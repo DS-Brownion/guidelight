@@ -12,6 +12,7 @@ yfinance = "*"
 scipy = "*"
 quantlib = "*"
 polygon-api-client = "*"
+marshmallow-sqlalchemy = "*"
 
 [dev-packages]
 
