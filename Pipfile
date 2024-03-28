@@ -14,6 +14,9 @@ quantlib = "*"
 polygon-api-client = "*"
 marshmallow-sqlalchemy = "*"
 python-dotenv = "*"
+fastapi = {extras = ["all"], version = "*"}
+pydantic = "*"
+httpx = "*"
 
 [dev-packages]
 
