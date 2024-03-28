@@ -13,6 +13,7 @@ scipy = "*"
 quantlib = "*"
 polygon-api-client = "*"
 marshmallow-sqlalchemy = "*"
+python-dotenv = "*"
 
 [dev-packages]
 
