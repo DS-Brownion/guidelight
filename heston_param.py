@@ -58,3 +58,4 @@ def heston_predictions(v0, kappa, theta, sigma, rho, risk_free_rate_quote: ql.Si
     volatility_path = torch.tensor([multi_path[1][i] for i in range(len(times))])
 
     return asset_price_path, volatility_path
+  
