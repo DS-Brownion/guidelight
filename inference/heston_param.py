@@ -1,53 +1,48 @@
 import numpy as np
-from scipy.optimize import differential_evolution
+from scipy.optimize import minimize
 import torch
 import QuantLib as ql
 
-def calibrate_daily_parameters(historical_vol, risk_free_rate, spot_prices, q, time_steps, num_paths):
-    bounds = [(0, 10), (0.01, 0.5), (0.1, 1.5), (-1, 1), (0.001, 1)]  # Bounds for kappa, theta, sigma, rho, v0
-    result = differential_evolution(
-        heston_objective_function,
-        bounds,
-        args=(historical_vol,risk_free_rate, spot_prices, q, time_steps, num_paths),  # Fixed parameters passed here
-        strategy='best1bin',
-        maxiter=300,
-        popsize=15,
-        tol=0.01,
-        mutation=(0.5, 1.5),
-        recombination=0.7,
-        workers=10
-    )
-
+def calibrate_daily_parameters(historical_vol, risk_free_rate, stock_prices, q, time_steps, num_paths):
+    bounds = [(0, 10), (0.01, 0.5), (0.1, 1.5), (-1, 1), (0.001, 1)]
+    x0c = [np.random.uniform(low, high) for low, high in bounds]  # Bounds for kappa, theta, sigma, rho, v0
+    
+    result = minimize(heston_objective_function, x0=x0c, args=(historical_vol, risk_free_rate, stock_prices, q, time_steps, num_paths), bounds=bounds, method='L-BFGS-B')
     return result.x
 
 
-def heston_objective_function(params, historical_vol, risk_free_rate, spot_prices, q, time_steps, num_paths):
+def heston_objective_function(params, historical_vol, risk_free_rate, stock_prices, q, time_steps, num_paths):
     
     kappa, theta, sigma, rho, v0 = params
-    median_simulated_vols = torch.zeros(spot_prices.shape[0], dtype=torch.float32)
-
     
-    for i, price in enumerate(spot_prices):
-        _, simulated_vols = heston_predictions(kappa, theta, sigma, rho, v0, risk_free_rate, q, price, 1/252, time_steps, num_paths)
-        median_simulated_vols[i] = torch.median(torch.median(torch.tensor(simulated_vols), dim=0).values)  # Ensure conversion to tensor if needed
 
-    return torch.mean((median_simulated_vols - torch.tensor(historical_vol)) ** 2)  # Ensure historical_vol is correctly handled
+    simulated_prices, simulated_vols = heston_predictions(kappa, theta, sigma, rho, v0, risk_free_rate, q, stock_prices[0], 1/252, time_steps, num_paths)
+    
+    mean_simulated_prices = simulated_prices.mean(dim=0)[:-1]
+    mean_simulated_vols = simulated_vols.mean(dim=0)[:-1]
+    
 
+    # Compute the MSE between the mean simulated paths and the historical data
+    price_error = torch.mean((mean_simulated_prices - stock_prices) ** 2)
+    vol_error = torch.mean((mean_simulated_vols - historical_vol) ** 2)  # Assumes historical_vol is already in a comparable form
 
+    # Sum of the errors
+    total_error = np.sqrt((price_error.item()) ** 2 + (vol_error.item()) ** 2)
 
+    return total_error
 
-def estimate_historical_volatility(spot_prices):
+def estimate_historical_volatility(stock_prices):
     """
     Estimates the historical volatility from the spot prices.
     """
 
-    if not isinstance(spot_prices, torch.Tensor):
-        spot_prices = torch.tensor(spot_prices, dtype=torch.float)
-    elif spot_prices.dtype != torch.float:
-        spot_prices = spot_prices.to(dtype=torch.float)
+    if not isinstance(stock_prices, torch.Tensor):
+        stock_prices = torch.tensor(stock_prices, dtype=torch.float)
+    elif stock_prices.dtype != torch.float:
+        stock_prices = stock_prices.to(dtype=torch.float)
 
     # Calculate log returns
-    log_returns = torch.log(spot_prices[1:] / spot_prices[:-1])
+    log_returns = torch.log(stock_prices[1:] / stock_prices[:-1])
     
     # Calculate the standard deviation of log returns
     std_dev = torch.std(log_returns, unbiased=True)
@@ -57,7 +52,7 @@ def estimate_historical_volatility(spot_prices):
 
 
 
-def heston_predictions(kappa, theta, sigma, rho, v0, risk_free_rate, q, spot_price, length, time_steps , num_paths = 1000):
+def heston_predictions(kappa, theta, sigma, rho, v0, risk_free_rate, q, stock_price, length, time_steps , num_paths = 1000):
     today = ql.Date().todaysDate()
     # daycount convention, not the difference in days
     daycount = ql.Actual360()
@@ -71,7 +66,7 @@ def heston_predictions(kappa, theta, sigma, rho, v0, risk_free_rate, q, spot_pri
     rf_r = ql.YieldTermStructureHandle(ql.FlatForward(today, risk_free_rate_handle, daycount))
     d_y = ql.YieldTermStructureHandle(ql.FlatForward(today, q_handle, daycount))
 
-    heston_process = ql.HestonProcess(rf_r, d_y, ql.QuoteHandle(ql.SimpleQuote(spot_price)), v0, kappa, theta, sigma, rho)
+    heston_process = ql.HestonProcess(rf_r, d_y, ql.QuoteHandle(ql.SimpleQuote(stock_price)), v0, kappa, theta, sigma, rho)
     
 
 
