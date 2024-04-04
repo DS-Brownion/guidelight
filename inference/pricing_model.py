@@ -5,25 +5,20 @@ import torch
 from torch import nn
 import QuantLib as ql
 from scipy.optimize import differential_evolution
-from heston_param import estimate_historical_parameters, heston_predictions, heston_predictions
+from heston_param import *
 
 
 
 
-
-def daily_heston_parameters(daily_market_vols, daily_strike_prices, daily_spot_prices, daily_maturity_dates):
-	daily_heston_parameter = []
+def heston_daily_parameters(daily_stock_prices):
+	daily_params = []
+	for stock_price in daily_stock_prices:
+		hist_vols = estimate_historical_volatility(stock_price)
+		daily_params = daily_params.append(calibrate_daily_parameters(hist_vols, 0.1, daily_stock_prices, 0.0237, 390, 1000))
 	
-		# Estimate Heston model parameters for each day
-	parameters = estimate_historical_parameters(daily_market_vols, daily_strike_prices, daily_spot_prices, daily_maturity_dates)
-	daily_heston_parameters.append(parameters)
-	return daily_heston_parameter
-def calculate_hist_parameters(market_vols, spot_prices, strike_prices, maturity_dates, num_days):
-	for i in range(num_days):
-		daily_parameter = daily_heston_parameters(market_vols[i], spot_prices[i], strike_prices[i], maturity_dates[i])
-		daily_heston_parameters.append(daily_parameter)
+	return torch.tensor(daily_params, dtype=torch.float32)
 
-	return daily_heston_parameters
+
 
 class heston(nn.Module):
 	def __init__(self):
@@ -36,7 +31,7 @@ class heston(nn.Module):
 
 	def forward(self, params):
 		self.mu, self.kappa, self.theta, self.xi, self.rho = params
-		sp_path, v_path = heston_predictions(self.mu, self.kappa, self.theta, self.xi, self.rho)
+		sp_path, v_path = heston_predictions(self.kappa, self.theta, self.xi, self.rho, self.mu, 0.1, 0.0237, 100, 390, 1000)
 		s_mean = sp_path.mean()
 		p_mean = sp_path.mean()
 		s_dev = sp_path - s_mean
