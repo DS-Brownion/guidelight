@@ -17,6 +17,7 @@ python-dotenv = "*"
 fastapi = {extras = ["all"], version = "*"}
 pydantic = "*"
 httpx = "*"
+pandas = "*"
 
 [dev-packages]
 

@@ -2,50 +2,39 @@ import numpy as np
 from scipy.optimize import differential_evolution
 import torch
 import QuantLib as ql
-# def heston_implied_volatility(parameters, market_vols, spot_prices):
-#     """
-#     Computes the implied volatilities from the Heston model.
-#     """
-# 	# Unpack the parameters
-#     kappa, theta, sigma, rho, v0, r, q = parameters
-#     heston_vols = []
-#     for S, K, T in zip(spot_prices, strike_prices, maturity_dates):
-#           heston_vols.append(heston_implied_vol(S, K, T, kappa, theta, sigma, rho, v0, r, q))
 
-#     return np.array(heston_vols)
+def calibrate_daily_parameters(historical_vol, risk_free_rate, spot_prices, q, time_steps, num_paths):
+    bounds = [(0, 10), (0.01, 0.5), (0.1, 1.5), (-1, 1), (0.001, 1)]  # Bounds for kappa, theta, sigma, rho, v0
+    result = differential_evolution(
+        heston_objective_function,
+        bounds,
+        args=(historical_vol,risk_free_rate, spot_prices, q, time_steps, num_paths),  # Fixed parameters passed here
+        strategy='best1bin',
+        maxiter=300,
+        popsize=15,
+        tol=0.01,
+        mutation=(0.5, 1.5),
+        recombination=0.7,
+        workers=10
+    )
 
-# def heston_objective_function(parameters, market_vols, spot_prices, strike_prices, maturity_dates):
-#     """
-#     Computes the loss function to be minimized.
-#     """
-#     heston_vols = heston_predictions(parameters, market_vols, spot_prices, strike_prices, maturity_dates)
-#     loss = np.mean((market_vols - heston_vols) ** 2)
-#     return loss
+    return result.x
 
-# def estimate_historical_parameters(market_vols, spot_prices, strike_prices, maturity_dates):
-#     bounds = [(0, 10), (0.01, 0.5), (0.1, 1.5), (-1, 1), (0.001, 1), (0.01, 0.5)]
-#     result = differential_evolution(heston_objective_function, bounds, args=(market_vols, spot_prices, strike_prices, maturity_dates))
-#     estimated_parameters = result.x
 
-#     return estimated_parameters
+def heston_objective_function(params, historical_vol, risk_free_rate, spot_prices, q, time_steps, num_paths):
+    
+    kappa, theta, sigma, rho, v0 = params
+    median_simulated_vols = torch.zeros(spot_prices.shape[0], dtype=torch.float32)
 
-def estimate_daily_parameters(spot_prices, historical_vol, risk_free_rate_quote):
-    bounds = [(0, 10), (0.01, 0.5), (0.1, 1.5), (-1, 1), (0.001, 1), (0.01, 0.5)]
-    result = differential_evolution(heston_objective_function, bounds, args=(historical_vol, risk_free_rate_quote))
+    
+    for i, price in enumerate(spot_prices):
+        _, simulated_vols = heston_predictions(kappa, theta, sigma, rho, v0, risk_free_rate, q, price, 1/252, time_steps, num_paths)
+        median_simulated_vols[i] = torch.median(torch.median(torch.tensor(simulated_vols), dim=0).values)  # Ensure conversion to tensor if needed
 
-def heston_objective_function(params, historical_vol, risk_free_rate_quote):
-    """
-    Computes the loss function to be minimized.
-    """
-    simulated_vols = heston_model_volatility(params)
-    loss = np.mean((simulated_vols - historical_vol) ** 2)
-    return loss
-def heston_model_volatility(parameters, risk_free_rate_quote):
-    q = ql.SimpleQuote(risk_free_rate_quote)
+    return torch.mean((median_simulated_vols - torch.tensor(historical_vol)) ** 2)  # Ensure historical_vol is correctly handled
 
-    r = heston_predictions(parameters, q)
 
-    return implied_volatility
+
 
 def estimate_historical_volatility(spot_prices):
     """
@@ -68,41 +57,38 @@ def estimate_historical_volatility(spot_prices):
 
 
 
-def heston_predictions(parameters, risk_free_rate_quote: ql.SimpleQuote, r, q, spot_price, length, time_steps):
+def heston_predictions(kappa, theta, sigma, rho, v0, risk_free_rate, q, spot_price, length, time_steps , num_paths = 1000):
     today = ql.Date().todaysDate()
     # daycount convention, not the difference in days
     daycount = ql.Actual360()
-    calendar = ql.TARGET()
 
 
-    kappa, theta, sigma, rho, v0  = parameters
+
     # Convert SimpleQuote to QuoteHandle for use in FlatForward
-    risk_free_rate_handle = ql.QuoteHandle(r)
-
+    risk_free_rate_handle = ql.QuoteHandle(ql.SimpleQuote(risk_free_rate))
+    q_handle = ql.QuoteHandle(ql.SimpleQuote(q))
     # Using FlatForward with QuoteHandle and day count convention
     rf_r = ql.YieldTermStructureHandle(ql.FlatForward(today, risk_free_rate_handle, daycount))
-    d_y = ql.YieldTermStructureHandle(ql.FlatForward(today, risk_free_rate_handle, daycount))
+    d_y = ql.YieldTermStructureHandle(ql.FlatForward(today, q_handle, daycount))
 
     heston_process = ql.HestonProcess(rf_r, d_y, ql.QuoteHandle(ql.SimpleQuote(spot_price)), v0, kappa, theta, sigma, rho)
     
 
 
     # Monte Carlo simulation of the Heston process
-    rng = ql.GaussianRandomSequenceGenerator(ql.UniformRandomSequenceGenerator(time_steps, ql.UniformRandomGenerator()))
-    sequenceGen = ql.GaussianPathGenerator(heston_process, length, time_steps, rng, False)
+    rng = ql.GaussianRandomSequenceGenerator(ql.UniformRandomSequenceGenerator(2*time_steps, ql.UniformRandomGenerator()))
+    times = list(ql.TimeGrid(length, time_steps))
+    sequenceGen = ql.GaussianMultiPathGenerator(heston_process, times, rng)
 
     asset_paths = []
     vol_paths = []
 
-    for i in range(time_steps):
+    for i in range(num_paths):
         sample_path = sequenceGen.next()
         path = sample_path.value()
-        time = [path.time(j) for j in range(len(path))]
-        asset_path = [path[j] for j in range(len(path))]
-        vol_path = [np.sqrt(v0) * np.exp(kappa * (theta - np.log(v0)) * t - 0.5 * sigma**2 * t) for t in time]  # Simplified
         
-        asset_paths.append(asset_path)
-        vol_paths.append(vol_path)
+        asset_paths.append(path[0])
+        vol_paths.append(path[1])
 
-    return asset_path, vol_path
+    return torch.FloatTensor(asset_paths), torch.FloatTensor(vol_paths)
   
