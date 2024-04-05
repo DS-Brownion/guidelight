@@ -8,7 +8,7 @@ def calibrate_daily_parameters(historical_vol, risk_free_rate, stock_prices, q, 
     x0c = [np.random.uniform(low, high) for low, high in bounds]  # Bounds for kappa, theta, sigma, rho, v0
     
     result = minimize(heston_objective_function, x0=x0c, args=(historical_vol, risk_free_rate, stock_prices, q, time_steps, num_paths), bounds=bounds, method='L-BFGS-B')
-    return result.x
+    return torch.tensor(result.x)
 
 
 def heston_objective_function(params, historical_vol, risk_free_rate, stock_prices, q, time_steps, num_paths):
