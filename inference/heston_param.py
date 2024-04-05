@@ -71,7 +71,7 @@ def heston_predictions(kappa, theta, sigma, rho, v0, risk_free_rate, q, stock_pr
 
 
     # Monte Carlo simulation of the Heston process
-    rng = ql.GaussianRandomSequenceGenerator(ql.UniformRandomSequenceGenerator(time_steps, ql.UniformRandomGenerator()))
+    rng = ql.GaussianRandomSequenceGenerator(ql.UniformRandomSequenceGenerator(2 * time_steps, ql.UniformRandomGenerator()))
     times = list(ql.TimeGrid(length, time_steps))
     sequenceGen = ql.GaussianMultiPathGenerator(heston_process, times, rng)
 
