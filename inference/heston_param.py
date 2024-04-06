@@ -4,19 +4,36 @@ import torch
 import QuantLib as ql
 
 def calibrate_daily_parameters(historical_vol, risk_free_rate, stock_prices, q, time_steps, num_paths):
+
+    today = ql.Date().todaysDate()
+    # daycount convention, not the difference in days
+    daycount = ql.Actual360()
+
+
+
+    # Convert SimpleQuote to QuoteHandle for use in FlatForward
+    risk_free_rate_handle = ql.QuoteHandle(ql.SimpleQuote(risk_free_rate))
+    q_handle = ql.QuoteHandle(ql.SimpleQuote(q))
+    # Using FlatForward with QuoteHandle and day count convention
+    rf_r = ql.YieldTermStructureHandle(ql.FlatForward(today, risk_free_rate_handle, daycount))
+    d_y = ql.YieldTermStructureHandle(ql.FlatForward(today, q_handle, daycount))
+    
+    rng = ql.GaussianRandomSequenceGenerator(ql.UniformRandomSequenceGenerator(2 * time_steps, ql.UniformRandomGenerator()))
+    times = list(ql.TimeGrid(1/252, time_steps))
+
     bounds = [(0, 10), (0.01, 0.5), (0.1, 1.5), (-1, 1), (0.001, 1)]
     x0c = [np.random.uniform(low, high) for low, high in bounds]  # Bounds for kappa, theta, sigma, rho, v0
-    
-    result = minimize(heston_objective_function, x0=x0c, args=(historical_vol, risk_free_rate, stock_prices, q, time_steps, num_paths), bounds=bounds, method='L-BFGS-B')
+    # kappa, theta, sigma, rho, v0, rf_r, d_y, stock_price, times , num_paths, rng
+    result = minimize(heston_objective_function, x0=x0c, args=(historical_vol, rf_r, stock_prices, d_y, times, num_paths, rng), bounds=bounds, method='L-BFGS-B')
     return torch.tensor(result.x)
 
 
-def heston_objective_function(params, historical_vol, risk_free_rate, stock_prices, q, time_steps, num_paths):
+def heston_objective_function(params, historical_vol, risk_free_curve, stock_prices, q_curve, times, num_paths, rng):
     
     kappa, theta, sigma, rho, v0 = params
     
 
-    simulated_prices, simulated_vols = heston_predictions(kappa, theta, sigma, rho, v0, risk_free_rate, q, stock_prices[0], 1/252, time_steps, num_paths)
+    simulated_prices, simulated_vols = heston_predictions(kappa, theta, sigma, rho, v0, risk_free_curve, q_curve, stock_prices[0], times, num_paths,rng)
     
     mean_simulated_prices = simulated_prices.mean(dim=0)[:-1]
     mean_simulated_vols = simulated_vols.mean(dim=0)[:-1]
@@ -52,27 +69,13 @@ def estimate_historical_volatility(stock_prices):
 
 
 
-def heston_predictions(kappa, theta, sigma, rho, v0, risk_free_rate, q, stock_price, length, time_steps , num_paths = 1000):
-    today = ql.Date().todaysDate()
-    # daycount convention, not the difference in days
-    daycount = ql.Actual360()
+def heston_predictions(kappa, theta, sigma, rho, v0, rf_r, d_y, stock_price, times , num_paths, rng):
 
-
-
-    # Convert SimpleQuote to QuoteHandle for use in FlatForward
-    risk_free_rate_handle = ql.QuoteHandle(ql.SimpleQuote(risk_free_rate))
-    q_handle = ql.QuoteHandle(ql.SimpleQuote(q))
-    # Using FlatForward with QuoteHandle and day count convention
-    rf_r = ql.YieldTermStructureHandle(ql.FlatForward(today, risk_free_rate_handle, daycount))
-    d_y = ql.YieldTermStructureHandle(ql.FlatForward(today, q_handle, daycount))
-
-    heston_process = ql.HestonProcess(rf_r, d_y, ql.QuoteHandle(ql.SimpleQuote(stock_price)), v0, kappa, theta, sigma, rho)
     
-
+    heston_process = ql.HestonProcess(rf_r, d_y, ql.QuoteHandle(ql.SimpleQuote(stock_price)), v0, kappa, theta, sigma, rho)
 
     # Monte Carlo simulation of the Heston process
-    rng = ql.GaussianRandomSequenceGenerator(ql.UniformRandomSequenceGenerator(2 * time_steps, ql.UniformRandomGenerator()))
-    times = list(ql.TimeGrid(length, time_steps))
+    
     sequenceGen = ql.GaussianMultiPathGenerator(heston_process, times, rng)
 
     asset_paths = []
