@@ -18,6 +18,10 @@ fastapi = {extras = ["all"], version = "*"}
 pydantic = "*"
 httpx = "*"
 pandas = "*"
+alpaca-py = "*"
+numba = "*"
+nelson-siegel-svensson = "*"
+py-vollib-vectorized = "*"
 
 [dev-packages]
 

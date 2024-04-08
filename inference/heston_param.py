@@ -89,4 +89,14 @@ def heston_predictions(kappa, theta, sigma, rho, v0, rf_r, d_y, stock_price, tim
         vol_paths.append(path[1])
 
     return torch.FloatTensor(asset_paths), torch.FloatTensor(vol_paths)
-  
+
+
+def heston_char(u, params):
+    kappa, theta, zeta, rho, v0, r, q, T, S0 = params 
+    t0 = 0.0 ;  q = 0.0
+    m = np.log(S0) + (r - q)*(T-t0)
+    D = np.sqrt((rho*zeta*1j*u - kappa)**2 + zeta**2*(1j*u + u**2))
+    C = (kappa - rho*zeta*1j*u - D) / (kappa - rho*zeta*1j*u + D)
+    beta = ((kappa - rho*zeta*1j*u - D)*(1-np.exp(-D*(T-t0)))) / (zeta**2*(1-C*np.exp(-D*(T-t0))))
+    alpha = ((kappa*theta)/(zeta**2))*((kappa - rho*zeta*1j*u - D)*(T-t0) - 2*np.log((1-C*np.exp(-D*(T-t0))/(1-C))))
+    return np.exp(1j*u*m + alpha + beta*v0)
