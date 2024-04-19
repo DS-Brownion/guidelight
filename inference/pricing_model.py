@@ -118,3 +118,57 @@ class neuralized_heston(nn.Module):
 		return self.heston(params)
 
 
+class param_CNN(nn.Module):
+	def __init__(self, device='cpu'):
+		super(param_CNN, self).__init__()
+		self.conv1 = nn.Conv1d(1, 64, 3)
+		self.conv2 = nn.Conv1d(64, 128, 3)
+		self.conv3 = nn.Conv1d(128, 256, 3)
+		self.pool = nn.MaxPool1d(2)
+		self.fc1 = nn.Linear(256, 128)
+		self.fc2 = nn.Linear(128, 64)
+		self.fc3 = nn.Linear(64, 1)
+		self.device = device
+		self.to(device)
+	
+	def forward(self, params):
+		params = params.to(self.device)
+		params = self.pool(F.relu(self.conv1(params)))
+		params = self.pool(F.relu(self.conv2(params)))
+		params = self.pool(F.relu(self.conv3(params)))
+		params = params.view(-1, 256)
+		params = F.relu(self.fc1(params))
+		params = F.relu(self.fc2(params))
+		params = self.fc3(params)
+		return params
+	
+	def train_loop(self, train_h, train_eb, val_h, val_eb):
+		# chooses gpu if available, otherwise cpu
+		
+		# chose the adam optimizer for the gradient descent
+		train_h, train_eb = train_h.to(self.device), train_eb.to(self.device)
+		val_h, val_eb = val_h.to(self.device), val_eb.to(self.device)
+		optimizer = torch.optim.Adam(self.parameters(), lr=0.01)
+		# currently using MSE loss function to fit the model ()
+		loss_fn = nn.MSELoss()
+
+		# training the model for 100 epochs
+		for epoch in range(100):
+			# set to training mode
+			self.train()
+
+			# zero the gradients otherwise they would accumulate
+			optimizer.zero_grad()
+			pred = self(train_h)
+			loss = loss_fn(pred, train_eb)
+			loss.backward()
+			optimizer.step()
+
+
+			# set to evaluation mode
+			self.eval()
+			with torch.no_grad():  # Inference mode, gradients not computed
+				val_pred = self(val_h)
+				val_loss = loss_fn(val_pred, val_eb)
+			
+			print(f'Epoch {epoch} loss: {loss.item()}')
