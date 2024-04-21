@@ -23,6 +23,8 @@ numba = "*"
 nelson-siegel-svensson = "*"
 py-vollib-vectorized = "*"
 pyfftw = "*"
+scikit-learn = "*"
+joblib = "*"
 
 [dev-packages]
 

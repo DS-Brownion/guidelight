@@ -5,170 +5,48 @@ import torch
 from torch import nn
 import QuantLib as ql
 from scipy.optimize import differential_evolution
-from heston_param import *
+from heston_fft import *
 
 
 
 
-def heston_daily_parameters(daily_stock_prices):
-	daily_params = []
-	for stock_price in daily_stock_prices:
-		hist_vols = estimate_historical_volatility(stock_price)
-		daily_params = daily_params.append(calibrate_daily_parameters(hist_vols, 0.1, daily_stock_prices, 0.0237, 390, 1000))
-	
-	return torch.tensor(daily_params, dtype=torch.float32)
 
 
 
-class heston(nn.Module):
-	def __init__(self):
-		super(heston, self).__init__()
-		self.mu = 0.0
-		self.kappa = 0.0
-		self.theta = 0.0
-		self.xi = 0.0
-		self.rho = 0.0
 
-	def forward(self, params):
-		self.mu, self.kappa, self.theta, self.xi, self.rho = params
-		sp_path, v_path = heston_predictions(self.kappa, self.theta, self.xi, self.rho, self.mu, 0.1, 0.0237, 100, 390, 1000)
-		s_mean = sp_path.mean()
-		p_mean = sp_path.mean()
-		s_dev = sp_path - s_mean
-		v_dev = v_path - p_mean
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-		covariance = (s_dev * v_dev).mean()
-		e_x = s_mean
-		beta = covariance / s_dev.std()
-		return e_x, beta
-	
+class CNNLSTMModel(nn.Module):
+    def __init__(self, num_features, num_output_features):
+        super(CNNLSTMModel, self).__init__()
+        self.conv1 = nn.Conv1d(in_channels=num_features, out_channels=64, kernel_size=3, padding=1)
+        self.lstm = nn.LSTM(input_size=64, hidden_size=128, batch_first=True)
+        self.dense = nn.Linear(128, num_output_features)
 
-class param_LSTM(nn.Module):
-	def __init__(self, device='cpu'):
-		super(param_LSTM, self).__init__()
-		# utilizing 3 layers of LSTM
-		self.lstms = nn.ModuleList([
-            nn.LSTM(128, hidden_size=64, batch_first=True),
-            nn.LSTM(64, hidden_size=32, batch_first=True),
-            nn.LSTM(32, hidden_size=16, batch_first=True)  # Ensure consistency in input_size
-        ])
-		self.dropouts = nn.ModuleList([nn.Dropout(0.5) for _ in range(2)])
+    def forward(self, x):
+        # x shape: [batch_size, sequence_length, num_features]
+        x = x.permute(0, 2, 1)  # Rearrange to [batch_size, num_features, sequence_length] for Conv1D
+        x = F.relu(self.conv1(x))
+        x = x.permute(0, 2, 1)  # Rearrange back for LSTM
+        x, _ = self.lstm(x)
+        x = self.dense(x[:, -1, :])  # Only take the output from the last time step
+        return x
 
-		self.device = device
-		self.linear = nn.Linear(16, 1)
-		self.to(device)
-	
-	def forward(self,params):
-		
-		# since we would only need the last output of the LSTM
-		
-		params = params.to(self.device)
-		for i in range(len(self.lstms)):
-			params, _ = self.lstms[i](params)
-			# apply residual connection
-			if i < len(self.dropouts):
-				params = self.dropouts[i](params)
-		params = params[ -1, :]
-		params = self.linear(params)
-		
-		return params
-	
-	def train_loop(self, train_h, train_eb, val_h, val_eb):
-		# chooses gpu if available, otherwise cpu
-		
-		# chose the adam optimizer for the gradient descent
-		train_h, train_eb = train_h.to(self.device), train_eb.to(self.device)
-		val_h, val_eb = val_h.to(self.device), val_eb.to(self.device)
-		optimizer = torch.optim.Adam(self.parameters(), lr=0.01)
-		# currently using MSE loss function to fit the model ()
-		loss_fn = nn.MSELoss()
+    def apply_fft(self, x):
+        # Apply FFT on the last layer's outputs (post-processing)
+        fft_output = torch.fft.rfft(x)
+        return fft_output
 
-		# training the model for 100 epochs
-		for epoch in range(100):
-			# set to training mode
-			self.train()
-
-			# zero the gradients otherwise they would accumulate
-			optimizer.zero_grad()
-			pred = self(train_h)
-			loss = loss_fn(pred, train_eb)
-			loss.backward()
-			optimizer.step()
-
-
-			# set to evaluation mode
-			self.eval()
-			with torch.no_grad():  # Inference mode, gradients not computed
-				val_pred = self(val_h)
-				val_loss = loss_fn(val_pred, val_eb)
-			
-			print(f'Epoch {epoch} loss: {loss.item()}', f'Validation loss: {val_loss.item()}')
-
-
-class neuralized_heston(nn.Module):
-	def __init__(self, device='cpu'):
-		super(neuralized_heston, self).__init__()
-		self.heston = heston()
-		self.param_LSTM = param_LSTM(device)
-		self.device = device
-		self.to(device)
-	
-	def forward(self, params):
-		params = self.param_LSTM(params)
-		return self.heston(params)
-
-
-class param_CNN(nn.Module):
-	def __init__(self, device='cpu'):
-		super(param_CNN, self).__init__()
-		self.conv1 = nn.Conv1d(1, 64, 3)
-		self.conv2 = nn.Conv1d(64, 128, 3)
-		self.conv3 = nn.Conv1d(128, 256, 3)
-		self.pool = nn.MaxPool1d(2)
-		self.fc1 = nn.Linear(256, 128)
-		self.fc2 = nn.Linear(128, 64)
-		self.fc3 = nn.Linear(64, 1)
-		self.device = device
-		self.to(device)
-	
-	def forward(self, params):
-		params = params.to(self.device)
-		params = self.pool(F.relu(self.conv1(params)))
-		params = self.pool(F.relu(self.conv2(params)))
-		params = self.pool(F.relu(self.conv3(params)))
-		params = params.view(-1, 256)
-		params = F.relu(self.fc1(params))
-		params = F.relu(self.fc2(params))
-		params = self.fc3(params)
-		return params
-	
-	def train_loop(self, train_h, train_eb, val_h, val_eb):
-		# chooses gpu if available, otherwise cpu
-		
-		# chose the adam optimizer for the gradient descent
-		train_h, train_eb = train_h.to(self.device), train_eb.to(self.device)
-		val_h, val_eb = val_h.to(self.device), val_eb.to(self.device)
-		optimizer = torch.optim.Adam(self.parameters(), lr=0.01)
-		# currently using MSE loss function to fit the model ()
-		loss_fn = nn.MSELoss()
-
-		# training the model for 100 epochs
-		for epoch in range(100):
-			# set to training mode
-			self.train()
-
-			# zero the gradients otherwise they would accumulate
-			optimizer.zero_grad()
-			pred = self(train_h)
-			loss = loss_fn(pred, train_eb)
-			loss.backward()
-			optimizer.step()
-
-
-			# set to evaluation mode
-			self.eval()
-			with torch.no_grad():  # Inference mode, gradients not computed
-				val_pred = self(val_h)
-				val_loss = loss_fn(val_pred, val_eb)
-			
-			print(f'Epoch {epoch} loss: {loss.item()}')
+def huber_loss_with_fft(y_true, y_pred, delta=1.0):
+    fft_true = torch.fft.rfft(y_true)
+    fft_pred = torch.fft.rfft(y_pred)
+    
+    error = torch.abs(fft_true - fft_pred)
+    condition = error <= delta
+    squared_loss = 0.5 * torch.pow(error, 2)
+    linear_loss = delta * (error - 0.5 * delta)
+    
+    loss = torch.where(condition, squared_loss, linear_loss)
+    return torch.mean(loss)
