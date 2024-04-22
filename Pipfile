@@ -25,6 +25,8 @@ py-vollib-vectorized = "*"
 pyfftw = "*"
 scikit-learn = "*"
 joblib = "*"
+polygon = "*"
+sec-edgar-downloader = "*"
 
 [dev-packages]
 
