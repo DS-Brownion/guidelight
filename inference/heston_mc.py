@@ -89,6 +89,7 @@ def heston_predictions(kappa, theta, sigma, rho, v0, rf_r, d_y, stock_price, tim
         vol_paths.append(path[1])
 
     return torch.FloatTensor(asset_paths), torch.FloatTensor(vol_paths)
+    # (Joy) return the asset path that generated best expected returns for the bl model
 
 
 def heston_char(u, params):

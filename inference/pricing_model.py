@@ -13,6 +13,7 @@ class CNNLSTMModel(nn.Module):
         self.conv1 = nn.Conv1d(in_channels=num_features, out_channels=64, kernel_size=3, padding=1)
         self.lstm = nn.LSTM(input_size=64, hidden_size=128, batch_first=True)
         self.dense = nn.Linear(128, num_output_features)
+        # train the model using param_data
 
     def forward(self, x):
         # x shape: [batch_size, sequence_length, num_features]
