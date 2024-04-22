@@ -3,7 +3,6 @@ import py_vollib_vectorized
 from dotenv import load_dotenv
 import pandas as pd
 import numpy as np
-from polygon import RESTClient
 from datetime import datetime, timedelta
 import pandas_market_calendars as mcal
 import os, pickle

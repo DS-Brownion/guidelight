@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "33ac39357a3d38f94729aeeb9df488eda9e14563a9b1df902c375a30dcf4afba"
+            "sha256": "dd8d9ec207e3e349d4a663253dca747a6309fd4ed26b6c12a352bc60725fd044"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -1303,6 +1303,14 @@
             "markers": "python_version >= '3.8'",
             "version": "==10.3.0"
         },
+        "polygon": {
+            "hashes": [
+                "sha256:79a69c2b055d41c46690ceb0a2110ac12c9e54288180e00f7092b7089018f7e8"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.6'",
+            "version": "==1.2.0"
+        },
         "polygon-api-client": {
             "hashes": [
                 "sha256:700dc42d1de9a6b3b199e01433cf41bc6012ded77bcd9869f876492883864de2",
@@ -1428,10 +1436,10 @@
         },
         "pydantic-extra-types": {
             "hashes": [
-                "sha256:d291d521c2e2bf2e6f11971caf8d639518124ae26a76d2e712599e98c4ef2b2b",
-                "sha256:e9a93cfb245158462acb76621785219f80ad112303a0a7784d2ada65e6ed6cba"
+                "sha256:ac01bbdaa4f85e4c4744a9792c5b0cfe61efa5028a0e670c3d8bfbf8b36c8543",
+                "sha256:b9d9ddd755fa5960ec5a77cffcbd5d8796a0116e1dfc8f7c3a27fa0041693382"
             ],
-            "version": "==2.6.0"
+            "version": "==2.7.0"
         },
         "pydantic-settings": {
             "hashes": [
@@ -1480,6 +1488,14 @@
             ],
             "markers": "python_full_version >= '3.6.8'",
             "version": "==3.1.2"
+        },
+        "pyrate-limiter": {
+            "hashes": [
+                "sha256:390f97066b322732e498c9e921fbdfd31d9ec0070a14e06da9af0efc62e091e4",
+                "sha256:715e9f08c6fe2a00d0cae5b1a6647d68ffeb2a54dc0cc2cff4e046b067ce6da4"
+            ],
+            "markers": "python_version >= '3.8' and python_version < '4.0'",
+            "version": "==3.6.0"
         },
         "python-dateutil": {
             "hashes": [
@@ -1719,6 +1735,15 @@
             "index": "pypi",
             "markers": "python_version >= '3.9'",
             "version": "==1.13.0"
+        },
+        "sec-edgar-downloader": {
+            "hashes": [
+                "sha256:65135b673c8ff1c4f2c400ae6828b8720ba5af3bc7c58729000ef741e3403e56",
+                "sha256:cab5ed1de1fce59722b609567f4c1790b2bf96308f7e6c74671e83b27dde7316"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.8'",
+            "version": "==5.0.2"
         },
         "simplejson": {
             "hashes": [
@@ -2208,6 +2233,14 @@
                 "sha256:b36a1c245f2d304965eb4e0a82848379241dc04b865afcc4aab16748587e1923"
             ],
             "version": "==0.5.1"
+        },
+        "websocket-client": {
+            "hashes": [
+                "sha256:10e511ea3a8c744631d3bd77e61eb17ed09304c413ad42cf6ddfa4c7787e8fe6",
+                "sha256:f4c3d22fec12a2461427a29957ff07d35098ee2d976d3ba244e688b8b4057588"
+            ],
+            "markers": "python_version >= '3.8'",
+            "version": "==1.7.0"
         },
         "websockets": {
             "hashes": [

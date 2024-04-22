@@ -4,18 +4,7 @@ import matplotlib.pyplot as plt
 import torch
 from torch import nn
 import QuantLib as ql
-from scipy.optimize import differential_evolution
 from heston_fft import *
-
-
-
-
-
-
-
-
-import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 class CNNLSTMModel(nn.Module):
