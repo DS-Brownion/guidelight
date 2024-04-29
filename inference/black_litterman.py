@@ -10,7 +10,7 @@ from pypfopt import black_litterman, risk_models
 from pypfopt import BlackLittermanModel, plotting
 from pypfopt import DiscreteAllocation
 
- from pricing_model import CNNLSTMModel, huber_loss_with_fft
+from pricing_model import CNNLSTMModel, huber_loss_with_fft
 import torch
 
 # Function to get stock data
