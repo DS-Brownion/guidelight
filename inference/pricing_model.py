@@ -8,12 +8,22 @@ from heston_fft import *
 import torch.nn.functional as F
 
 class CNNLSTMModel(nn.Module):
-    def __init__(self, num_features, num_output_features):
+    def __init__(self, num_features, num_output_features, hidden_size=128, conv_out_channels=64, 
+                 kernel_size=3, padding=1, dropout_rate=0.2):
         super(CNNLSTMModel, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels=num_features, out_channels=64, kernel_size=3, padding=1)
-        self.lstm = nn.LSTM(input_size=64, hidden_size=128, batch_first=True)
-        self.dense = nn.Linear(128, num_output_features)
+        
+        # Convolutional Layer
+        self.conv1 = nn.Conv1d(in_channels=num_features, out_channels=conv_out_channels, 
+                               kernel_size=kernel_size, padding=padding)
+        self.batch_norm1 = nn.BatchNorm1d(conv_out_channels)  # Normalization for stability
+    
+        # LSTM Layer
+        self.lstm = nn.LSTM(input_size=conv_out_channels, hidden_size=hidden_size, batch_first=True)
 
+        self.dropout = nn.Dropout(dropout_rate)
+        self.dense = nn.Linear(hidden_size, num_output_features)
+        
+        
     def forward(self, x):
         # x shape: [batch_size, sequence_length, num_features]
         x = x.permute(0, 2, 1)  # Rearrange to [batch_size, num_features, sequence_length] for Conv1D

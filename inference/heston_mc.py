@@ -78,17 +78,18 @@ def heston_predictions(kappa, theta, sigma, rho, v0, rf_r, d_y, stock_price, tim
     
     sequenceGen = ql.GaussianMultiPathGenerator(heston_process, times, rng)
 
-    asset_paths = []
-    vol_paths = []
+    asset_paths = np.empty(num_paths)
+    vol_paths = np.empty(num_paths)
 
     for i in range(num_paths):
         sample_path = sequenceGen.next()
         path = sample_path.value()
         
-        asset_paths.append(path[0])
-        vol_paths.append(path[1])
+        asset_paths[i] = path[0]
+        vol_paths[i] = path[1]
 
     return torch.FloatTensor(asset_paths), torch.FloatTensor(vol_paths)
+    # (Joy) return the asset path that generated best expected returns for the bl model
 
 
 def heston_char(u, params):
